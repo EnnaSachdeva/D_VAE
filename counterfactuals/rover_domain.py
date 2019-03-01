@@ -221,6 +221,8 @@ class Task_Rovers:
         rewards = [0.0 for _ in range(self.params.num_rover)]
 
         # while calculating rewards, check for each POI and the number of rovers within obs radius of that POI.
+        # if that rover is observing some POI along with other rovers (minimum number of POIs required to observe some POI)
+        # then the rover gets the reward.
         for poi_id, rovers in enumerate(poi_visitors):
             if len(rovers) >= self.params.coupling:  # if more than the specified number of rovers are observing any of POI, that rover gets a rewards
                 self.poi_status[poi_id] = True

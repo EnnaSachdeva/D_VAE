@@ -100,6 +100,10 @@ for i_episode in range(args.num_episodes):
         ounoise.reset()
     episode_reward = 0
 
+
+    # Here the joint reward is being given to each rover if it is observing some POI along with other rovers. So each
+    # rover gets
+    # a reward according to its
     for t in range(args.num_timestep):
         if i_episode % args.test_frequency == 0:
             joint_action = agent.select_action(joint_state)
