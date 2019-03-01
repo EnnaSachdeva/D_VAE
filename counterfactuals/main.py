@@ -39,9 +39,16 @@ class Parameters:
 
 
         #Rover domain
-        self.dim_x = self.dim_y = 15; self.obs_radius = 15; self.act_dist = 1.5; self.angle_res = 20
-        self.num_poi = 10; self.num_rover = 4; self.num_timestep = 25
-        self.poi_rand = 1; self.coupling = 2; self.rover_speed = 1
+        self.dim_x = self.dim_y = 15;
+        self.obs_radius = 15;
+        self.act_dist = 1.5;
+        self.angle_res = 20
+        self.num_poi = 10;
+        self.num_rover = 4;
+        self.num_timestep = 25
+        self.poi_rand = 1;
+        self.coupling = 2; # number of rovers required to observe a POI
+        self.rover_speed = 1
         self.is_homogeneous = True  #False --> Heterogenenous Actors
         self.sensor_model = 2 #1: Density Sensor
                               #2: Closest Sensor
@@ -75,6 +82,8 @@ env = Task_Rovers(args)
 
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
+
+
 if args.algo == "NAF":
     agent = NAF(args.gamma, args.tau, args.num_hnodes, env.observation_space.shape[0], env.action_space, args)
 else:
@@ -90,11 +99,13 @@ for i_episode in range(args.num_episodes):
         ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end - i_episode) / args.exploration_end + args.final_noise_scale
         ounoise.reset()
     episode_reward = 0
+
     for t in range(args.num_timestep):
         if i_episode % args.test_frequency == 0:
             joint_action = agent.select_action(joint_state)
         else:
-            joint_action = agent.select_action(joint_state, ounoise)
+            joint_action = agent.select_action(joint_state, ounoise)  # doing exploratory task once in a while (in test_frequency interval)
+
         joint_next_state, joint_reward = env.step(joint_action.cpu().numpy())
         joint_next_state = utils.to_tensor(np.array(joint_next_state), volatile=True)
         done = t == args.num_timestep - 1
@@ -105,7 +116,7 @@ for i_episode in range(args.num_episodes):
             action = Variable(joint_action[i].unsqueeze(0))
             state = joint_state[i,:].unsqueeze(0)
             next_state = joint_next_state[i, :].unsqueeze(0)
-            reward = utils.to_tensor(np.array([joint_reward[i]])).unsqueeze(0)
+            reward = utils.to_tensor(np.array([joint_reward[i]])).unsqueeze(0) #joint reward for
             memory.push(state, action, next_state, reward)
 
         state = next_state
@@ -121,4 +132,3 @@ for i_episode in range(args.num_episodes):
         tracker.update([episode_reward], i_episode)
         print("Episode: {}, noise: {}, reward: {}, average reward: {}".format(i_episode, ounoise.scale,
                                                                           episode_reward, tracker.all_tracker[0][1]))
-

@@ -204,6 +204,8 @@ class Task_Rovers:
 
         return self.get_joint_state(), self.get_reward()
 
+    # Here each rover is getting its own reward for observing a POI
+    # but it does not depend on quadrant (just the location of the rover and the POI)
     def get_reward(self):
         #Update POI's visibility
         poi_visitors = [[] for _ in range(self.params.num_poi)]
@@ -217,11 +219,15 @@ class Task_Rovers:
 
         #Compute reward
         rewards = [0.0 for _ in range(self.params.num_rover)]
+
+        # while calculating rewards, check for each POI and the number of rovers within obs radius of that POI.
         for poi_id, rovers in enumerate(poi_visitors):
-            if len(rovers) >= self.params.coupling:
+            if len(rovers) >= self.params.coupling:  # if more than the specified number of rovers are observing any of POI, that rover gets a rewards
                 self.poi_status[poi_id] = True
                 lucky_rovers = random.sample(rovers, self.params.coupling)
-                for rover_id in lucky_rovers: rewards[rover_id] += 1.0/self.params.num_poi
+
+                for rover_id in lucky_rovers:
+                    rewards[rover_id] += 1.0/self.params.num_poi
 
 
         return rewards
