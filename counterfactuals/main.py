@@ -102,8 +102,8 @@ for i_episode in range(args.num_episodes):
 
 
     # Here the joint reward is being given to each rover if it is observing some POI along with other rovers. So each
-    # rover gets
-    # a reward according to its
+    # rover gets a reward if the POI gets observed.'
+    # The task is considered done, if the
     for t in range(args.num_timestep):
         if i_episode % args.test_frequency == 0:
             joint_action = agent.select_action(joint_state)
