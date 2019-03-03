@@ -70,7 +70,7 @@ class Parameters:
                            #1: Single Agent
                            #2: Multiagent 2-coupled
 
-        self.num_episodes = 500#100000
+        self.num_episodes = 100000
         self.updates_per_step = 1
         self.replay_size = 1000000
         self.render = 'False'

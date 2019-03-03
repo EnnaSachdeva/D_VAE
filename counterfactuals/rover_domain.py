@@ -8,7 +8,7 @@ class Task_Rovers:
 
     def __init__(self, parameters):
         self.params = parameters; self.dim_x = parameters.dim_x; self.dim_y = parameters.dim_y
-        self.observation_space = np.zeros((2*360 // self.params.angle_res + 4, 1))
+        self.observation_space = np.zeros((2*360 // self.params.angle_res + 4, 1))  # +4 is for incorporating the 4 walls info
         self.action_space = np.zeros((self.params.action_dim,1))
 
         # Initialize food position container
@@ -42,6 +42,8 @@ class Task_Rovers:
         rad = int(self.dim_x / math.sqrt(3) / 2.0)
         center = int((start + end) / 2.0)
 
+
+        # for reseting the environment with random or non-random positions of POIs
         if self.params.poi_rand: #Random
             for i in range(self.params.num_poi):
                 if i % 3 == 0:
@@ -117,7 +119,7 @@ class Task_Rovers:
                 else:
                     self.util_macro[rover_id][1] = False  # Turn off is_activated_now?
 
-            self_x = self.rover_pos[rover_id][0]; self_y = self.rover_pos[rover_id][1]
+            self_x = self.rover_pos[rover_id][0]; self_y = self.rover_pos[rover_id][1] # rover's own positions (x, y)
 
             rover_state = [0.0 for _ in range(360 // self.params.angle_res)]
             poi_state = [0.0 for _ in range(360 // self.params.angle_res)]
@@ -166,11 +168,15 @@ class Task_Rovers:
 
             state = rover_state + poi_state #Append rover and poi to form the full state
 
+            # TODO: explain this
+
             #Append wall info
-            state = state + [-1.0, -1.0, -1.0, -1.0]
-            if self_x <= self.params.obs_radius: state[-4] = self_x
+            # if x and y coordinates of rover are at or less than a distance of observation radius from the 4 walls,
+            # add it to state
+            state = state + [-1.0, -1.0, -1.0, -1.0] ##### extra information for wall info
+            if self_x <= self.params.obs_radius: state[-4] = self_x  # if x pos is within observation radius, add it to state
             if self.params.dim_x - self_x <= self.params.obs_radius: state[-3] = self.params.dim_x - self_x
-            if self_y <= self.params.obs_radius :state[-2] = self_y
+            if self_y <= self.params.obs_radius :state[-2] = self_y # if y pos is within observation radius, add it to state
             if self.params.dim_y - self_y <= self.params.obs_radius: state[-1] = self.params.dim_y - self_y
 
             #state = np.array(state)
@@ -221,15 +227,15 @@ class Task_Rovers:
         rewards = [0.0 for _ in range(self.params.num_rover)]
 
         # while calculating rewards, check for each POI and the number of rovers within obs radius of that POI.
-        # if that rover is observing some POI along with other rovers (minimum number of POIs required to observe some POI)
-        # then the rover gets the reward.
+        # if that rover is observing a POI along with other rovers (minimum number of POIs required to observe some POI)
+        # then that rover gets the reward.
         for poi_id, rovers in enumerate(poi_visitors):
             if len(rovers) >= self.params.coupling:  # if more than the specified number of rovers are observing any of POI, that rover gets a rewards
-                self.poi_status[poi_id] = True
-                lucky_rovers = random.sample(rovers, self.params.coupling)
+                self.poi_status[poi_id] = True       # that POI is observed
+                lucky_rovers = random.sample(rovers, self.params.coupling)  # randomly sample required (2) rovers from the visitors
 
                 for rover_id in lucky_rovers:
-                    rewards[rover_id] += 1.0/self.params.num_poi
+                    rewards[rover_id] += 1.0/self.params.num_poi # TODO: explain this- how much that rover is contributing in observing all avilable POIs
 
 
         return rewards
