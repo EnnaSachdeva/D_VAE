@@ -7,24 +7,24 @@ import math, pickle
 class Task_Rovers:
 
     def __init__(self, parameters):
-        self.params = parameters; self.dim_x = parameters.dim_x; self.dim_y = parameters.dim_y
+        self.params = parameters; self.dim_x = parameters.dim_x; self.dim_y = parameters.dim_y#-----------------what is this dim x
         self.observation_space = np.zeros((2*360 // self.params.angle_res + 4, 1))  # +4 is for incorporating the 4 walls info
         self.action_space = np.zeros((self.params.action_dim,1))
 
-        # Initialize food position container
-        self.poi_pos = [[None, None] for _ in range(self.params.num_poi)]  # FORMAT: [item] = [x, y] coordinate
-        self.poi_status = [False for _ in range(self.params.num_poi)]  # FORMAT: [item] = [T/F] is observed?
+        # Initialize the position and is_observed status for each of the point of interest
+        self.poi_pos = [[None, None] for _ in range(self.params.num_poi)]  # FORMAT: [item] = [x, y] coordinate #------------Note that it is a list of POI positions for every poi, may
+        self.poi_status = [False for _ in range(self.params.num_poi)]  # FORMAT: [item] = [T/F] is observed?#----------------be because we put them at different locations at diff episodes
 
         # Initialize rover position container
-        self.rover_pos = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track each rover's position
-        self.ledger_closest = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track each rover's ledger call
+        self.rover_pos = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track each rover's position, list of x,y co ordinates for the rovers
+        self.ledger_closest = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track the position of each of the other rovers in the domain
 
-        #Macro Action trackers
-        self.util_macro = [[False, False, False] for _ in range(self.params.num_rover)] #Macro utilities to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
+        #Macro Action trackers--------------------------------------------------------status of all the rovers initialized
+        self.macro_status_of_rovers = [[False, False, False] for _ in range(self.params.num_rover)] #Macro utilities to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
 
-        #Rover path trace (viz)
-        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_pos]
-        self.action_seq = [[0.0 for _ in range(self.params.action_dim)] for _ in range(self.params.num_rover)]
+        #position of all the rovers in the domain
+        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_pos]#--although called path is not a path, only location       #--------------mathi ko duita activated ma farak k xa
+        self.action_seq = [[0.0 for _ in range(self.params.action_dim)] for _ in range(self.params.num_rover)] #------------doesnt look like a sequence to me
 
     def reset_poi_pos(self):
 
@@ -33,13 +33,13 @@ class Task_Rovers:
             return
 
         if self.params.unit_test == 2: #Unit_test
-            if random.random()<0.5: self.poi_pos[0] = [4,0]
+            if random.random()<0.5: self.poi_pos[0] = [4,0]#------------------------what are we trying to do with this unit testing
             else: self.poi_pos[0] = [4,9]
             return
 
         start = 1.0;
         end = self.dim_x - 1.0
-        rad = int(self.dim_x / math.sqrt(3) / 2.0)
+        rad = int(self.dim_x / math.sqrt(3) / 2.0)#------------------------------what is all this thing?
         center = int((start + end) / 2.0)
 
 
@@ -63,7 +63,7 @@ class Task_Rovers:
         else: #Not_random
             for i in range(self.params.num_poi):
                 if i % 3 == 0:
-                    x = start + i/4 #randint(start, center - rad - 1)
+                    x = start + i/4 #randint(start, center - rad - 1)#------------------------can we position the POI at some decimal point too? this says so
                     y = start + i/3
                 elif i % 3 == 1:
                     x = center + i/4 #randint(center + rad + 1, end)
@@ -104,31 +104,31 @@ class Task_Rovers:
     def reset(self):
         self.reset_poi_pos()
         self.reset_rover_pos()
-        self.poi_status = self.poi_status = [False for _ in range(self.params.num_poi)]
-        self.util_macro = [[False, False, False] for _ in range(self.params.num_rover)]  # Macro utilities to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
-        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_pos]
-        self.action_seq = [[0.0 for _ in range(self.params.action_dim)] for _ in range(self.params.num_rover)]
+        self.poi_status = self.poi_status = [False for _ in range(self.params.num_poi)]#---------------------------why is this double?
+        self.macro_status_of_rovers = [[False, False, False] for _ in range(self.params.num_rover)]  # Macro utilities/ status to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
+        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_pos]#--------------not a path actually, just a location
+        self.action_seq = [[0.0 for _ in range(self.params.action_dim)] for _ in range(self.params.num_rover)]#---hareko rover ko harek action in the action sequence lai zero set gareko
         return self.get_joint_state()
 
-    def get_joint_state(self):
+    def get_joint_state(self):#-----------------EXPLAIN----------------------------------are we definitely reseting the env after each call of this, is this always called at the end ig the episode
         joint_state = []
-        for rover_id in range(self.params.num_rover):
-            if self.util_macro[rover_id][0]: #If currently active
-                if self.util_macro[rover_id][1] == False: #Not first time activate (Not Is-activated-now)
-                    return np.zeros((720/self.params.angle_res + 5, 1)) -10000 #If macro return none
+        for rover_id in range(self.params.num_rover):#---------------------------do for each rover
+            if self.macro_status_of_rovers[rover_id][0]: #---for each rover -----------If currently active#----------------------------------------------yeha k gareko ho?
+                if self.macro_status_of_rovers[rover_id][1] == False: #Not first time activate (Not Is-activated-now)
+                    return np.zeros((720/self.params.angle_res + 5, 1)) -10000 #If macro return none#----------------------why 5?
                 else:
-                    self.util_macro[rover_id][1] = False  # Turn off is_activated_now?
+                    self.macro_status_of_rovers[rover_id][1] = False  # Turn off is_activated_now?
 
             self_x = self.rover_pos[rover_id][0]; self_y = self.rover_pos[rover_id][1] # rover's own positions (x, y)
 
-            rover_state = [0.0 for _ in range(360 // self.params.angle_res)]
+            rover_state = [0.0 for _ in range(360 // self.params.angle_res)]#--------------------------------------what are we trying to achieve here
             poi_state = [0.0 for _ in range(360 // self.params.angle_res)]
-            temp_poi_dist_list = [[] for _ in range(360 // self.params.angle_res)]
+            temp_poi_dist_list = [[] for _ in range(360 // self.params.angle_res)]#-------------------is the declaration fine?
             temp_rover_dist_list = [[] for _ in range(360 // self.params.angle_res)]
 
             # Log all distance into brackets for POIs
             x2 = -1.0; y2 = 0.0
-            for loc, status in zip(self.poi_pos, self.poi_status):
+            for loc, status in zip(self.poi_pos, self.poi_status):#------for each rover there exists a list of dist for pois------poi status observed or unobserved, by default all false
                 if status == True: continue #If accessed ignore
 
                 x1 = loc[0] - self_x; y1 = loc[1] - self_y
@@ -138,20 +138,20 @@ class Task_Rovers:
                 bracket = int(angle / self.params.angle_res)
                 temp_poi_dist_list[bracket].append(dist)
 
-            # Log all distance into brackets for other drones
+            # Log all distance into brackets for other drones#-------------------for each rover there exists a list of rover dist for all other rovers
             for id, loc, in enumerate(self.rover_pos):
                 if id == rover_id: continue #Ignore self
 
                 x1 = loc[0] - self_x; y1 = loc[1] - self_y
-                angle, dist = self.get_angle_dist(x1, y1, x2, y2)
+                angle, dist = self.get_angle_dist(x1, y1, x2, y2)#-------------------------------------------------getting angle and distance
                 if dist > self.params.obs_radius: continue #Observability radius
 
-                bracket = int(angle / self.params.angle_res)
-                temp_rover_dist_list[bracket].append(dist)
+                bracket = int(angle / self.params.angle_res)#-------------------get for each rover------------------------?????????????
+                temp_rover_dist_list[bracket].append(dist)#----------------yo list ko hasrek pos euta rover ko nlagi ho--doing all of this for each rover
 
 
             ####Encode the information onto the state
-            for bracket in range(int(360 / self.params.angle_res)):
+            for bracket in range(int(360 / self.params.angle_res)):#-------------------------?????
                 # POIs
                 num_poi = len(temp_poi_dist_list[bracket])
                 if num_poi > 0:
