@@ -166,13 +166,17 @@ class Task_Rovers:
                     else: rover_state[bracket] = min(temp_rover_dist_list[bracket]) #Minimum Sensor
                 else: rover_state[bracket] = -1.0
 
+
+            # rover_state: state of all rovers within its each angle (resolution)
+            # poi_state: state of all rovers within its each angle (resolution)
+
             state = rover_state + poi_state #Append rover and poi to form the full state
 
             # TODO: explain this
 
             #Append wall info
             # if x and y coordinates of rover are at or less than a distance of observation radius from the 4 walls,
-            # add it to state
+            # add it to state, to know that the rovers are within the boundary of the walls
             state = state + [-1.0, -1.0, -1.0, -1.0] ##### extra information for wall info
             if self_x <= self.params.obs_radius: state[-4] = self_x  # if x pos is within observation radius, add it to state
             if self.params.dim_x - self_x <= self.params.obs_radius: state[-3] = self.params.dim_x - self_x
