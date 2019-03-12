@@ -55,7 +55,7 @@ class Parameters:
 
 
         #Dependents
-        self.state_dim = 2*360 / self.angle_res + 5
+        self.state_dim = 2*360 / self.angle_res + 5 #why 5 here instead of 4?
         self.action_dim = 2
         self.test_frequency = 10
 
