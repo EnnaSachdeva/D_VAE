@@ -7,34 +7,48 @@ import math, pickle
 class Task_Rovers:
 
     def __init__(self, parameters):
-        self.params = parameters; self.dim_x = parameters.dim_x; self.dim_y = parameters.dim_y
-        self.observation_space = np.zeros((2*360 // self.params.angle_res + 4, 1))  # +4 is for incorporating the 4 walls info
-        self.action_space = np.zeros((self.params.action_dim,1))
+        self.params = parameters;
+        self.dim_x = parameters.dim_x; #---------------15 raixa, total length of the dimension po raixa
+        self.dim_y = parameters.dim_y
+        self.observation_space = np.zeros((2*360 // self.params.angle_res + 4, 1))
+
+        #this must be for for the entire system, each rover retrieves necessary information from the single instance of this class
+        #for each quadrant, store the number of rovers, pois, and the wall distance information
+
+
+        self.action_space = np.zeros((self.params.action_dim,1)) #contains just 2 values, what are those?
 
         # Initialize food position container
-        self.poi_pos = [[None, None] for _ in range(self.params.num_poi)]  # FORMAT: [item] = [x, y] coordinate
-        self.poi_status = [False for _ in range(self.params.num_poi)]  # FORMAT: [item] = [T/F] is observed?
+        self.list_of_all_poi_coordinates = [[None, None] for _ in range(self.params.num_poi)]  # FORMAT: [item] = [x, y] coordinate for each POI
+        self.is_observed_list_for_all_poi = [False for _ in range(self.params.num_poi)]  # FORMAT: [item] = [T/F] is observed? #Is the POI observed at this moment?
 
         # Initialize rover position container
-        self.rover_pos = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track each rover's position
-        self.ledger_closest = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track each rover's ledger call
+        self.rover_position_container = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Each one is a list of lists
+        # first index gives the i of the rover the second gives a list of coordinates i.e.,  rover's position
+        self.ledger_closest = [[0.0, 0.0] for _ in range(self.params.num_rover)]  # Track each rover's ledger call----???????
+        #--------is this ledger closest the co-ordinate of the rover closest to this rover
 
-        #Macro Action trackers
-        self.util_macro = [[False, False, False] for _ in range(self.params.num_rover)] #Macro utilities to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
+        #-----------------------------------------????????????????????
+        #Macro Action trackers to track if a rover is was active, is being activated or has reached its destination
+        self.status_of_rovers = [[False, False, False] for _ in range(self.params.num_rover)] #[Is_currently_active?, Is_activated_now?, Is_reached_destination?]
+
 
         #Rover path trace (viz)
-        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_pos]
+        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_position_container] # a list of (x, y) co-ordinates for each rover's path
+        # we are appending this thing later
         self.action_seq = [[0.0 for _ in range(self.params.action_dim)] for _ in range(self.params.num_rover)]
+        #for every rover, there are 2 positins in the action dim, put 0 in both
+
 
     def reset_poi_pos(self):
 
         if self.params.unit_test == 1: #Unit_test
-            self.poi_pos[0] = [0,1]
+            self.list_of_all_poi_coordinates[0] = [0, 1]
             return
 
         if self.params.unit_test == 2: #Unit_test
-            if random.random()<0.5: self.poi_pos[0] = [4,0]
-            else: self.poi_pos[0] = [4,9]
+            if random.random()<0.5: self.list_of_all_poi_coordinates[0] = [4, 0]
+            else: self.list_of_all_poi_coordinates[0] = [4, 9]
             return
 
         start = 1.0;
@@ -58,7 +72,7 @@ class Task_Rovers:
                 else:
                     x = randint(center - rad, center + rad)
                     y = randint(center + rad + 1, end)
-                self.poi_pos[i] = [x, y]
+                self.list_of_all_poi_coordinates[i] = [x, y]
 
         else: #Not_random
             for i in range(self.params.num_poi):
@@ -74,7 +88,7 @@ class Task_Rovers:
                 else:
                     x = center+i/4#randint(center - rad, center + rad)
                     y = center+i/4#randint(center + rad + 1, end)
-                self.poi_pos[i] = [x, y]
+                self.list_of_all_poi_coordinates[i] = [x, y]
 
     def reset_rover_pos(self):
         start = 1.0; end = self.dim_x - 1.0
@@ -82,7 +96,7 @@ class Task_Rovers:
         center = int((start + end) / 2.0)
 
         if self.params.unit_test == 1: #Unit test
-            self.rover_pos[0] = [end,0];
+            self.rover_position_container[0] = [end, 0];
             return
 
         for rover_id in range(self.params.num_rover):
@@ -99,89 +113,120 @@ class Task_Rovers:
                 if quadrant == 3:
                     x = center - (rover_id / (4 * center - rad)) % (center - rad)
                     y = center + 1 - (rover_id / 4) % (center - rad)
-                self.rover_pos[rover_id] = [x, y]
+                self.rover_position_container[rover_id] = [x, y]
 
     def reset(self):
         self.reset_poi_pos()
         self.reset_rover_pos()
-        self.poi_status = self.poi_status = [False for _ in range(self.params.num_poi)]
-        self.util_macro = [[False, False, False] for _ in range(self.params.num_rover)]  # Macro utilities to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
-        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_pos]
+        self.is_observed_list_for_all_poi = self.is_observed_list_for_all_poi = [False for _ in range(self.params.num_poi)]
+        self.status_of_rovers = [[False, False, False] for _ in range(self.params.num_rover)]  # Macro utilities to track [Is_currently_active?, Is_activated_now?, Is_reached_destination?]
+        self.rover_path = [[(loc[0], loc[1])] for loc in self.rover_position_container]
         self.action_seq = [[0.0 for _ in range(self.params.action_dim)] for _ in range(self.params.num_rover)]
         return self.get_joint_state()
 
     def get_joint_state(self):
         joint_state = []
         for rover_id in range(self.params.num_rover):
-            if self.util_macro[rover_id][0]: #If currently active
-                if self.util_macro[rover_id][1] == False: #Not first time activate (Not Is-activated-now)
+            #For each rover if the over is currently active then check if active from some earlier point in time
+            # If not first time active, return no.zeroes - 10000 for some reason i dont know about
+            # else, set its actice status off since its of no use as the step has ended
+            if self.status_of_rovers[rover_id][0]: #If currently active
+                if self.status_of_rovers[rover_id][1] == False: #Not first time activate (Not Is-activated-now)
                     return np.zeros((720/self.params.angle_res + 5, 1)) -10000 #If macro return none
                 else:
-                    self.util_macro[rover_id][1] = False  # Turn off is_activated_now?
+                    self.status_of_rovers[rover_id][1] = False  # Turn off is_activated_now?
 
-            self_x = self.rover_pos[rover_id][0]; self_y = self.rover_pos[rover_id][1] # rover's own positions (x, y)
 
-            rover_state = [0.0 for _ in range(360 // self.params.angle_res)]
-            poi_state = [0.0 for _ in range(360 // self.params.angle_res)]
-            temp_poi_dist_list = [[] for _ in range(360 // self.params.angle_res)]
-            temp_rover_dist_list = [[] for _ in range(360 // self.params.angle_res)]
+            #Rover ko aafno co ordinates liyeko
+            current_rover_x_coordinate = self.rover_position_container[rover_id][0];
+            current_rover_y_coordinate = self.rover_position_container[rover_id][1] # rover's own positions (x, y)
+
+            #For every rover, keep a list of rover states and another list of POI states filled with zero values, each for each quadrant/ resolution
+
+            rover_states_in_angle_bracket = [0.0 for _ in range(360 // self.params.angle_res)]
+            poi_states_in_rover_bracket = [0.0 for _ in range(360 // self.params.angle_res)]
+
+            #for every rover also keep a list of lists, each of the sublists for one quadrant consisting of distance to
+            #ppi values from this rover
+
+            #also for every rover keep a similar list for distance to rovers in each quadrant
+
+            temp_poi_dist_list = [[] for _ in range(360 // self.params.angle_res)] #list of 4 lists for pois for each rover
+            temp_rover_dist_list = [[] for _ in range(360 // self.params.angle_res)] #list of 4 lists for roves for each rover
 
             # Log all distance into brackets for POIs
-            x2 = -1.0; y2 = 0.0
-            for loc, status in zip(self.poi_pos, self.poi_status):
-                if status == True: continue #If accessed ignore
+            x2 = -1.0; y2 = 0.0#----------------------------Is this the fixed location of a POI?
+            for loc, status in zip(self.list_of_all_poi_coordinates, self.is_observed_list_for_all_poi):#--------------harek rover ra poi observer or not relationship
+                if status == True: continue #If observed, ignore
 
-                x1 = loc[0] - self_x; y1 = loc[1] - self_y
-                angle, dist = self.get_angle_dist(x1, y1, x2, y2)
-                if dist > self.params.obs_radius: continue #Observability radius
+                x1 = loc[0] - current_rover_x_coordinate
+                y1 = loc[1] - current_rover_y_coordinate
+                angle, dist = self.get_angle_dist(x1, y1, x2, y2)#calculation of dist and angle
+                if dist > self.params.obs_radius:
+                    continue #Observability radius
 
-                bracket = int(angle / self.params.angle_res)
-                temp_poi_dist_list[bracket].append(dist)
+                angle_bracket = int(angle / self.params.angle_res)#but if within the radius----------Yo bracket le k dinxa?
+                temp_poi_dist_list[angle_bracket].append(dist)#-------------------------------?????????
 
             # Log all distance into brackets for other drones
-            for id, loc, in enumerate(self.rover_pos):
-                if id == rover_id: continue #Ignore self
+            for id_of_rover, loc, in enumerate(self.rover_position_container):#----------------------------??????????????????????????
+                if id_of_rover == rover_id: continue #Ignore self
 
-                x1 = loc[0] - self_x; y1 = loc[1] - self_y
+                x1 = loc[0] - current_rover_x_coordinate; y1 = loc[1] - current_rover_y_coordinate
                 angle, dist = self.get_angle_dist(x1, y1, x2, y2)
-                if dist > self.params.obs_radius: continue #Observability radius
-
-                bracket = int(angle / self.params.angle_res)
-                temp_rover_dist_list[bracket].append(dist)
+                if dist > self.params.obs_radius: continue #Observability radius--------Why do we need to check if the other rover
+                #is within the observation radius of this radius or not
 
 
-            ####Encode the information onto the state
-            for bracket in range(int(360 / self.params.angle_res)):
+                #angle is the angle between the two relative to the x axis
+                #self.params.angle_res is the resolution , here 20
+                angle_bracket = int(angle / self.params.angle_res)#--------------------???????????????
+                temp_rover_dist_list[angle_bracket].append(dist)#-------------------????????????????????
+
+
+            ####Encode the information onto the rover and poi state variables
+            for angle_bracket in range(int(360 / self.params.angle_res)): #aba harek angle bracket ko lagi kaam garne
                 # POIs
-                num_poi = len(temp_poi_dist_list[bracket])
-                if num_poi > 0:
-                    if self.params.sensor_model == 1: poi_state[bracket] = sum(temp_poi_dist_list[bracket]) / num_poi #Density Sensor
-                    else: poi_state[bracket] = min(temp_poi_dist_list[bracket])  #Minimum Sensor
-                else: poi_state[bracket] = -1.0
+                num_poi = len(temp_poi_dist_list[angle_bracket]) #harek angle bracket bhitra kati ota POI xa ta
+                if num_poi > 0: # yedi harek bracket ma more than one xa bhane
+                    if self.params.sensor_model == 1: #--------------------------???? What is this sensor model
+                        poi_states_in_rover_bracket[angle_bracket] = sum(temp_poi_dist_list[angle_bracket]) / num_poi #Density
+                        #if ma average of all the poi distances liyeko xa
+
+                    else:
+                        poi_states_in_rover_bracket[angle_bracket] = min(temp_poi_dist_list[angle_bracket])  #Minimum Sensor
+                        #else ma sab bhanda najik ko POI liyeko xa
+
+                else: poi_states_in_rover_bracket[angle_bracket] = -1.0 #if there is no poi within this angle bracket
 
                 #Rovers
-                num_rover = len(temp_rover_dist_list[bracket])
+                num_rover = len(temp_rover_dist_list[angle_bracket])
                 if num_rover > 0:
-                    if self.params.sensor_model == 1: rover_state[bracket] = sum(temp_rover_dist_list[bracket]) / num_rover #Density Sensor
-                    else: rover_state[bracket] = min(temp_rover_dist_list[bracket]) #Minimum Sensor
-                else: rover_state[bracket] = -1.0
+                    if self.params.sensor_model == 1: rover_states_in_angle_bracket[angle_bracket] = sum(temp_rover_dist_list[angle_bracket]) / num_rover #Density Sensor
+                    else: rover_states_in_angle_bracket[angle_bracket] = min(temp_rover_dist_list[angle_bracket]) #Minimum Sensor
+                else: rover_states_in_angle_bracket[angle_bracket] = -1.0
 
 
             # rover_state: state of all rovers within its each angle (resolution)
             # poi_state: state of all rovers within its each angle (resolution)
 
-            state = rover_state + poi_state #Append rover and poi to form the full state
+            state = rover_states_in_angle_bracket + poi_states_in_rover_bracket #Append rover and poi to form the full state
 
             # TODO: explain this
 
             #Append wall info
-            # if x and y coordinates of rover are at or less than a distance of observation radius from the 4 walls,
+            # if x and y coordinates of rover are at or less than a distance of observation radius = 15 from the 4 walls,
             # add it to state, to know that the rovers are within the boundary of the walls
             state = state + [-1.0, -1.0, -1.0, -1.0] ##### extra information for wall info
-            if self_x <= self.params.obs_radius: state[-4] = self_x  # if x pos is within observation radius, add it to state
-            if self.params.dim_x - self_x <= self.params.obs_radius: state[-3] = self.params.dim_x - self_x
-            if self_y <= self.params.obs_radius :state[-2] = self_y # if y pos is within observation radius, add it to state
-            if self.params.dim_y - self_y <= self.params.obs_radius: state[-1] = self.params.dim_y - self_y
+
+            # we start from 0,0
+            #first wall i y axis which is to the left ogf our rover
+            #second wall is the right boundary walla parallel to y axis
+            if current_rover_x_coordinate <= self.params.obs_radius:#------------
+                state[-4] = current_rover_x_coordinate  # if x pos is within observation radius, add it to state
+            if self.params.dim_x - current_rover_x_coordinate <= self.params.obs_radius: state[-3] = self.params.dim_x - current_rover_x_coordinate
+            if current_rover_y_coordinate <= self.params.obs_radius :state[-2] = current_rover_y_coordinate # if y pos is within observation radius, add it to state
+            if self.params.dim_y - current_rover_y_coordinate <= self.params.obs_radius: state[-1] = self.params.dim_y - current_rover_y_coordinate
 
             #state = np.array(state)
             joint_state.append(state)
@@ -202,15 +247,15 @@ class Task_Rovers:
 
         for rover_id in range(self.params.num_rover):
             action = joint_action[rover_id]
-            new_pos = [self.rover_pos[rover_id][0]+action[0], self.rover_pos[rover_id][1]+action[1]]
+            new_pos = [self.rover_position_container[rover_id][0] + action[0], self.rover_position_container[rover_id][1] + action[1]]
 
             #Check if action is legal
             if not(new_pos[0] >= self.dim_x or new_pos[0] < 0 or new_pos[1] >= self.dim_y or new_pos[1] < 0):  #If legal
-                self.rover_pos[rover_id] = [new_pos[0], new_pos[1]] #Execute action
+                self.rover_position_container[rover_id] = [new_pos[0], new_pos[1]] #Execute action
 
         #Append rover path
         for rover_id in range(self.params.num_rover):
-            self.rover_path[rover_id].append((self.rover_pos[rover_id][0], self.rover_pos[rover_id][1]))
+            self.rover_path[rover_id].append((self.rover_position_container[rover_id][0], self.rover_position_container[rover_id][1]))
 
         return self.get_joint_state(), self.get_reward()
 
@@ -219,11 +264,11 @@ class Task_Rovers:
     def get_reward(self):
         #Update POI's visibility
         poi_visitors = [[] for _ in range(self.params.num_poi)]
-        for i, loc in enumerate(self.poi_pos): #For all POIs
-            if self.poi_status[i]== True: continue #Ignore POIs that have been harvested already
+        for i, loc in enumerate(self.list_of_all_poi_coordinates): #For all POIs
+            if self.is_observed_list_for_all_poi[i]== True: continue #Ignore POIs that have been harvested already
 
             for rover_id in range(self.params.num_rover): #For each rover
-                x1 = loc[0] - self.rover_pos[rover_id][0]; y1 = loc[1] - self.rover_pos[rover_id][1]
+                x1 = loc[0] - self.rover_position_container[rover_id][0]; y1 = loc[1] - self.rover_position_container[rover_id][1]
                 dist = math.sqrt(x1 * x1 + y1 * y1)
                 if dist <= self.params.act_dist: poi_visitors[i].append(rover_id) #Add rover to POI's visitor list
 
@@ -235,7 +280,7 @@ class Task_Rovers:
         # then that rover gets the reward.
         for poi_id, rovers in enumerate(poi_visitors):
             if len(rovers) >= self.params.coupling:  # if more than the specified number of rovers are observing any of POI, that rover gets a rewards
-                self.poi_status[poi_id] = True       # that POI is observed
+                self.is_observed_list_for_all_poi[poi_id] = True       # that POI is observed
                 lucky_rovers = random.sample(rovers, self.params.coupling)  # randomly sample required (2) rovers from the visitors
 
                 for rover_id in lucky_rovers:
@@ -250,14 +295,14 @@ class Task_Rovers:
 
         # Draw in hive
         drone_symbol_bank = ["0", "1", '2', '3', '4', '5']
-        for rover_pos, symbol in zip(self.rover_pos, drone_symbol_bank):
+        for rover_pos, symbol in zip(self.rover_position_container, drone_symbol_bank):
             x = int(rover_pos[0]); y = int(rover_pos[1])
             #print x,y
             grid[x][y] = symbol
 
 
         # Draw in food
-        for loc, status in zip(self.poi_pos, self.poi_status):
+        for loc, status in zip(self.list_of_all_poi_coordinates, self.is_observed_list_for_all_poi):
             x = int(loc[0]); y = int(loc[1])
             marker = 'I' if status else 'A'
             grid[x][y] = marker
@@ -280,7 +325,7 @@ class Task_Rovers:
                 grid[x][y] = drone_symbol_bank[rover_id]
 
         # Draw in food
-        for loc, status in zip(self.poi_pos, self.poi_status):
+        for loc, status in zip(self.list_of_all_poi_coordinates, self.is_observed_list_for_all_poi):
             x = int(loc[0]);
             y = int(loc[1])
             marker = 'I' if status else 'A'
