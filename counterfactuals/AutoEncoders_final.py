@@ -16,7 +16,7 @@ img_transform = transforms.Compose([transforms.ToTensor()])    #----------------
 
 
 
-myfilename = "../data/data_4_10_20.txt"
+myfilename = "../data/data_4_10_20_new.txt"
 f=open(myfilename,'r')
 line = f.readline()
 line_cnt = 1
@@ -51,6 +51,8 @@ while line:
 
 del updating_string[-1]     #removing the "a" added at the end of the loop above
 states = updating_string
+
+
 for i in range(len(states)):
 
     if(len(states[i]) != 40):
@@ -62,6 +64,7 @@ for i in range(len(states)):
 states_list_x_of_nparrays = []
 states_list_y = []
 for item in range(len(states)):
+
     states_list_x_of_nparrays.append(np.asarray(states[item], dtype=np.float32))
 
 for item in range(len(states)):#-------------------------------------------------works as lable, need to provide to make a data set
@@ -71,6 +74,8 @@ for item in range(len(states)):#------------------------------------------------
 tensor_x = torch.stack([torch.Tensor(i) for i in states_list_x_of_nparrays]) # transform to torch tensors
 tensor_y = torch.stack([torch.Tensor(i) for i in states_list_y])
 
+#tensor_x is a list of lists.
+#tensor_x[0] has a length of 40
 
 custom_dataset = utils.TensorDataset(tensor_x, tensor_y) # create your datset
 custom_dataloader = utils.DataLoader(dataset=custom_dataset,batch_size = batch_size,shuffle = True) # create your dataloader
@@ -120,16 +125,24 @@ class AutoEncoder(nn.Module):
 
 model = AutoEncoder().cuda()
 criterion = nn.L1Loss()#--------------Which loss to use, L1 or MSE, L1 loss makes more sense because we do not have outliers in our data
-optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate, weight_decay=1e-5)
 
+#print(len(custom_dataloader.dataset))#-----------------102464
 for epoch in range(num_epochs):
-    for sample_features,label in custom_dataloader:
-        sample = Variable(sample_features).cuda()
+    for index,data in enumerate(custom_dataloader):
+        features_of_a_batch, labels = data
+        #print(len(features)) gives 64 which is the batch size
+        #print(len(features[0])) gives 40 which is the dimension of the state space
+        features_of_a_batch = Variable(features_of_a_batch).cuda()
         # ----------------------------------------------forward
-        output = model(sample)
+        output = model(features_of_a_batch)
+        #check how good the model was at the end of every epoch
+        if(index == len(custom_dataloader)-1):
+            print("In the original data, 1st element of the last batch: ",features_of_a_batch[0])
+            print("Predicted Values to compare: ",output[0])
 
 
-        loss = criterion(output, sample)#------------------take care of the order of the output and the sample
+        loss = criterion(output, features_of_a_batch)#------------------take care of the order of the output and the sample
 
         # ----------------------------------------------backward
         optimizer.zero_grad()
@@ -138,8 +151,7 @@ for epoch in range(num_epochs):
     # ===================log========================
 
     #-----------------------------Check how good you are doing after every epoch
-    print("original image ", sample)
-    print("output image", output)
+
     print('epoch [{}/{}], loss:{:.4f}'.format(epoch + 1, num_epochs, loss.data.item()))
 
 torch.save(model.state_dict(), './vanilla_autoencoder_for_rd.pth')
