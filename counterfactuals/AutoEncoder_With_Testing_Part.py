@@ -8,16 +8,20 @@ from torchvision import transforms
 import time
 import numpy as np
 import torch.utils.data as utils
+import matplotlib.pyplot as plt
 
 
-num_epochs = 100
+num_epochs = 20
 batch_size = 64
 learning_rate = 1e-3
 img_transform = transforms.Compose([transforms.ToTensor()])    #-------------------------------------we do not want to normalize
-training_loss = 0
-testing_loss = 0
-
-
+training_loss_per_batch = 0
+testing_loss_per_batch = 0
+epoch_list_for_the_plot = []
+training_loss_list = []
+testing_loss_list = []
+no_of_training_batches = 0
+no_of_testing_batches = 0
 myfilename = "../data/data_4_10_20_new.txt"
 f=open(myfilename,'r')
 line = f.readline()
@@ -53,10 +57,10 @@ while line:
 
 del updating_string[-1]     #removing the "a" added at the end of the loop above
 states = updating_string
-length_of_total_states = len(states)
-print("The total number of states is ",length_of_total_states)
-training_states = states[:int(length_of_total_states * 0.9)]
-testing_states = states[int(length_of_total_states * 0.9):]
+length_of_total_states = len(states)#-----------584980
+
+training_states = states[:int(length_of_total_states * 0.9)]#----------526482
+testing_states = states[int(length_of_total_states * 0.9):]#-----------58498
 
 #------------------------------------Check if the data is inconsistent
 for i in range(len(training_states)):
@@ -89,8 +93,14 @@ def states_list(states_input):
 training_states_list_x, training_states_list_y = states_list(training_states)
 testing_states_list_x, testing_states_list_y = states_list(testing_states)
 # print(length_of_total_states)
-# print(len(training_states_list_x))
-# print(len(testing_states_list_x))
+
+# no_of_training_batches = len(training_states_list_x)/batch_size
+# no_of_testing_batches = len(testing_states_list_x)/batch_size
+# print(no_of_training_batches)
+# print(no_of_testing_batches)
+#
+# time.sleep(333)
+
 training_tensor_x = torch.stack([torch.Tensor(i) for i in training_states_list_x]) # transform to torch tensors
 training_tensor_y = torch.stack([torch.Tensor(i) for i in training_states_list_y])
 testing_tensor_x = torch.stack([torch.Tensor(i) for i in testing_states_list_x]) # transform to torch tensors
@@ -107,102 +117,88 @@ custom_testing_dataloader = utils.DataLoader(dataset=custom_testing_dataset,batc
 class AutoEncoder(nn.Module):
     def __init__(self):
         super(AutoEncoder, self).__init__()
-        self.encoder = nn.Sequential(nn.Linear(len(training_states[0]), 512),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(512, 256),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(256, 128),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(128, 64),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(64, 32),
-                                     nn.LeakyReLU(),
-                                     # nn.Linear(32, 16),
-                                     # nn.LeakyReLU(),
-                                     # nn.Linear(16, 10),
-                                     # nn.LeakyReLU()
-
-                                     #------------------------------------------Encoder ends here
-
-                                     )
-
-        # self.encoder = nn.Sequential(nn.Linear(len(states[0]),50),
-        #                              nn.LeakyReLU(),
-        #                              nn.Linear(50, 30),
-        #                              nn.LeakyReLU(),
-        #                              nn.Linear(30, 20),
-        #                              nn.LeakyReLU(),
-        #                              nn.Linear(20, 10),
-        #                              nn.LeakyReLU(),
-        #                              # nn.Linear(64, 32),
-        #                              # nn.LeakyReLU()  # ------------------------------------------Encoder ends here
-        #
-        #                              )
-
-        self.decoder = nn.Sequential(#nn.Linear(10, 16),
-                                     #nn.LeakyReLU(),
-                                     #nn.Linear(16, 32),
-                                     #nn.LeakyReLU(),
-                                     nn.Linear(32, 64),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(64, 128),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(128, 256),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(256, 512),
-                                     nn.LeakyReLU(),
-                                     nn.Linear(512, len(training_states[0]))#------------------------------------------Decoder ends here
 
 
-        )
-        # self.decoder = nn.Sequential(nn.Linear(10, 20),
-        #                              nn.LeakyReLU(),
-        #                              nn.Linear(20, 30),
-        #                              nn.LeakyReLU(),
-        #                              nn.Linear(30, 50),
-        #                              nn.LeakyReLU(),
-        #                              nn.Linear(50, len(states[0])),
-        #                              nn.LeakyReLU(),
-        #                              # nn.Linear(512, len(states[0]))
-        #                              # # ------------------------------------------Decoder ends here
-        #
-        #                              )
+        # The encoder part of the auto-encoder. nn.Sequential joins several layers end to end
+        self.encoder = nn.Sequential(nn.Linear(len(training_states[0]), 1024),
+                                     nn.LeakyReLU(),
+                                     nn.Linear(1024,256),
+                                     nn.LeakyReLU(),
+                                     nn.Linear(256, 64),
+                                     nn.LeakyReLU(),
+                                     nn.Linear(64, 10),
+                                     nn.LeakyReLU())
+
+
+
+
+        #The decoder part of the auto-encoder. nn.Sequential joins several layers end to end
+        self.decoder = nn.Sequential(nn.Linear(10, 64),
+                                     nn.LeakyReLU(),
+                                     nn.Linear(64, 256),
+                                     nn.LeakyReLU(),
+                                     nn.Linear(256, 1024),
+                                     nn.LeakyReLU(),
+                                     nn.Linear(1024, len(training_states[0])))
+
+
+
+
 
     def forward(self, x):
 
         x = self.encoder(x)
-                                #------------------------may be we can put tolerance stuff on latent dimensions
         x = self.decoder(x)
         return x
 
 
 model = AutoEncoder().cuda()
 criterion = nn.L1Loss()#--------------Which loss to use, L1 or MSE, L1 loss makes more sense because we do not have outliers in our data
+#by default reduce = None for Loss class so batch ko harek 40dim array ko loss ko sum matra aauxa
+# tara for each element chai MAE across each element ko sum garera mean nai nikalera dinxa
+#so loss for a batch = loss returned divided by batch size
+
 optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate, weight_decay=1e-5)
 
 #print(len(custom_dataloader.dataset))#-----------------102464
+
+
+print("\nTraining Starts here...")
+
+
+
 for epoch in range(num_epochs):
+
+    running_training_loss_cumulative_for_epoch = 0
+    running_testing_loss_cumulative_for_epoch = 0
+
     for index,data in enumerate(custom_training_dataloader):
         features_of_a_training_batch, training_labels = data
+
+
         #print(len(features)) gives 64 which is the batch size
         #print(len(features[0])) gives 40 which is the dimension of the state space
         features_of_a_training_batch = Variable(features_of_a_training_batch).cuda()
+
         # ----------------------------------------------forward
         training_output = model(features_of_a_training_batch)
+        training_output = training_output
+
+
+
         #check how good the model was at the end of every epoch
         if(index == len(custom_training_dataloader)-1):
             print("For Training Data: \n")
             print("In the original data, 1st element of the last batch: ",features_of_a_training_batch[1])
             print("Predicted Values to compare: ",training_output[1])
 
-
-        training_loss = criterion(training_output, features_of_a_training_batch)#------------------take care of the order of the output and the sample
+        training_loss_per_batch = criterion(training_output, features_of_a_training_batch.cpu())#by default, gives the mean of each elements within a sample
+        running_training_loss_cumulative_for_epoch = running_training_loss_cumulative_for_epoch + training_loss_per_batch
 
         # ----------------------------------------------backward
         optimizer.zero_grad()
-        training_loss.backward()
+        training_loss_per_batch.backward()
         optimizer.step()
-    # ===================log========================
 
     #-----------------------------Check how good you are doing after every epoch with testing data
     for index,data in enumerate(custom_testing_dataloader):
@@ -211,20 +207,42 @@ for epoch in range(num_epochs):
         features_of_a_testing_batch = Variable(features_of_a_testing_batch).cuda()
         # ----------------------------------------------forward
         testing_output = model(features_of_a_testing_batch)
+        testing_output = testing_output
+
+        #check how good the model was at the end of every epoch
         if(index == len(custom_testing_dataloader)-1):
             print("For Testing Data:\n")
             print("In the original data, 1st element of the last batch: ",features_of_a_testing_batch[1])
             print("Predicted Values to compare: ",testing_output[1])
 
 
-        testing_loss = criterion(testing_output, features_of_a_testing_batch)#------------------take care of the order of the output and the sample
+        testing_loss_per_batch = criterion(testing_output, features_of_a_testing_batch.cpu())
+        running_testing_loss_cumulative_for_epoch = running_testing_loss_cumulative_for_epoch + testing_loss_per_batch
+
+    epoch_training_loss = (running_training_loss_cumulative_for_epoch/len(training_states))
+    epoch_testing_loss = (running_testing_loss_cumulative_for_epoch/len(testing_states))
+    training_loss_list.append(epoch_training_loss.item())
+    testing_loss_list.append(epoch_testing_loss.item())
+    epoch_list_for_the_plot.append(epoch)
 
 
-
-
-    #Testing Code here
-    #-------------------------------------------------------------------------------
     print("epoch [{}/{}], ".format(epoch+1,num_epochs))
-    print('Training loss:{:.4f}'.format(training_loss.data.item()))
-    print('Testing loss:{:.4f}'.format(testing_loss.data.item()))
+    print('Training loss:{:.4f}'.format(epoch_training_loss))
+    print('Testing loss:{:.4f}'.format(epoch_testing_loss))
+
+    # ----------------------------Append the values to the lists
+
+
+    plt.figure(1)  # ------------------------------------------------------------Mode = figure(1) for plt
+    plt.plot(epoch_list_for_the_plot, training_loss_list, 'g')  # pass array or list
+    plt.plot(epoch_list_for_the_plot, testing_loss_list, 'r')
+    plt.xlabel("Number of Epochs")
+    plt.ylabel("Loss")
+    plt.gca().legend(('Training Loss', 'Testing Loss'))
+    plt.grid()
+
+    plt.title("Number of Epochs VS Loss")
+
+
+plt.show()
 #torch.save(model.state_dict(), './autoencoder.pth')
