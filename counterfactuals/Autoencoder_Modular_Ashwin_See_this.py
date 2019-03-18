@@ -9,11 +9,11 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.utils.data as utils
+import matplotlib.pyplot as plot
 import keyboard
 import time
 import numpy as np
 import math
-import matplotlib.pyplot as plt
 
 # ----------- Hyper Parameters -----------
 # The number of epochs to train
@@ -27,7 +27,7 @@ weight_decay = 0.00001
 # The momentum to be used during backward propagation
 momentum = 0.5
 # The training dataset
-dataset_txt_file = "../data/data_4_10_20_new.txt"
+dataset_txt_file = 'Rover_State_Test_Dataset.txt'
 # This specifies how to split the dataset into testing and training datasets
 train_test_ratio = 0.9
 # The optimizers to use ('ADAM', 'ADAGRAD', 'RMSPROP', 'SGD')
@@ -42,16 +42,6 @@ model_name_to_load = 'trained_network_1.pth'
 load_trained_model = False
 # The data type of the tensor to use
 tensor_data_type = np.float32
-# To plot the graphs, we need to maintain a running loss
-
-running_evaluation_loss = 0
-training_loss_per_batch = 0
-testing_loss_per_batch = 0
-epoch_list_for_the_plot = []
-training_loss_list = []
-testing_loss_list = []
-no_of_training_batches = 0
-no_of_testing_batches = 0
 # ----------------------------------------
 
 
@@ -106,20 +96,14 @@ class AutoEncoder(nn.Module):
 
     # This is a function to evaluate the neural network
     def evaluate_network(self, data_loader, loss_criterion):
-        # initializing the total loss to be zero
-
-        running_evaluation_loss = 0
-        # This variable helps count the total number of states in the dataset
-        length_of_total_states_in_evaluation_data = 0
+        # initializing the total evaluation loss to be zero
+        total_evaluation_loss = 0
         # Making the network to be in evaluation mode so that losses won't be accumulated, thereby saving memory
         self.eval()
         # Iterating through the data is data_loader
         for index, data in enumerate(data_loader):
-            # Splitting into images and labels
-
+            # Splitting into states and labels
             states, labels = data
-            length_of_total_states_in_evaluation_data = length_of_total_states_in_evaluation_data + len(states)
-
             # Converting to nn variable. cuda() creates another Variable that isn’t a leaf node in the computation graph
             states, labels = Variable(states).cuda(), Variable(labels).cuda()
             # The output obtained from the neural network
@@ -127,22 +111,16 @@ class AutoEncoder(nn.Module):
             # The loss is evaluated based on the cross entropy loss criteria
             loss = loss_criterion(outputs, states)
             # We get the loss for the current batch
-            running_evaluation_loss += loss.data
-            # Obtains the total number of labels in this round
-
-
-            if (index == len(data_loader) - 1):
-
+            total_evaluation_loss += loss.data
+            # In case we are at the last batch
+            if index == len(data_loader) - 1:
+                # We print the first state and outputs of the last batch for comparison
                 print("In the original data, 1st element of the last batch: ", states[0])
                 print("Predicted Values to compare: ", outputs[0])
-
-
-
-
         # Converting the network back into training mode
         self.train()
-        # Returns the average loss and prediction accuracy
-        return running_evaluation_loss / length_of_total_states_in_evaluation_data
+        # Returns the average loss across the evaluation dataset
+        return total_evaluation_loss / len(data_loader)
 
     @staticmethod
     # This function reads a text file containing the states information
@@ -256,6 +234,10 @@ if __name__ == "__main__":
     # ----------- We train the neural network here ----------
     # We initialize a flag to help regulate saving of the model
     save_flag = True
+    # To plot the training loss over epoch graph, we need a list to store the loss at each epoch
+    training_loss_list = []
+    # To plot the testing loss over epoch graph, we need a list to store the loss at each epoch
+    testing_loss_list = []
     # We iterate through the specified number of epochs
     for epoch in range(num_epochs):
         # We enumerate through the data loader for the training data
@@ -268,15 +250,12 @@ if __name__ == "__main__":
             output = model(batch_states)
             # The loss is measured between the output of the decoder and the input to the encoder
             loss = criterion(output, batch_states)
-            #running loss for an epoch
-
             # Zeros the gradients calculated previously
             optimizer.zero_grad()
             # Computes the gradients through back-propagation
             loss.backward()
             # proceeds with the gradient descent and changes the weights and biases
             optimizer.step()
-
 
             # In case keyboard 's' is pressed
             if keyboard.is_pressed('s') and keyboard.is_pressed('d') and save_flag:
@@ -304,39 +283,42 @@ if __name__ == "__main__":
                 # Save flag is marked as True
                 save_flag = True
 
+        # we get the loss on the training dataset for the current epoch
+        epoch_training_loss = model.evaluate_network(train_data_loader, criterion)
+        # we get the loss on the testing dataset for the current epoch
+        epoch_testing_loss = model.evaluate_network(test_data_loader, criterion)
+        # Append the training loss for this epoch to the training loss list
+        training_loss_list.append(epoch_training_loss)
+        # Append the testing loss for this epoch to the testing loss list
+        testing_loss_list.append(epoch_testing_loss)
+
+        # ----------- Display relevant information ----------
         # We print the epoch number and the loss on the test dataset after each epoch
         # print('epoch [{}/{}], loss on test dataset:{:.4f}, loss on train dataset:{:.4f}'.format(epoch+1, num_epochs,
         #     model.evaluate_network(test_data_loader, criterion), model.evaluate_network(train_data_loader, criterion)))
 
-        print("epoch [{}/{}], ".format(epoch + 1, num_epochs))
-        print("Training Data Evaluation: ")
-        epoch_training_loss = model.evaluate_network(train_data_loader, criterion)
+        print("Epoch [{}/{}], ".format(epoch + 1, num_epochs))
         print('Training loss:{:.4f}'.format(epoch_training_loss))
-        print("Testing Data Evaluation: ")
-        epoch_testing_loss = model.evaluate_network(test_data_loader, criterion)
         print('Testing loss:{:.4f}'.format(epoch_testing_loss))
 
-        # Append to the list to plot
-        training_loss_list.append(epoch_training_loss.item())
-        testing_loss_list.append(epoch_testing_loss.item())
-        epoch_list_for_the_plot.append(epoch)
+    # We do a line plot of the training dataset loss over epochs of training
+    plot.plot(list(range(1, num_epochs+1)), training_loss_list, color='green')
+    # We do a line plot of the testing dataset loss over epochs of training
+    plot.plot(list(range(1, num_epochs+1)), testing_loss_list, color='red')
+    # We mark the label on the x-axis
+    plot.xlabel("Number of Epochs")
+    # We mark the label on the y-axis
+    plot.ylabel(criterion_to_use + ' Loss')
+    # The legend is marked
+    plot.gca().legend(('Training Loss', 'Testing Loss'))
+    # The plot grid is highlighted
+    plot.grid()
+    # The plot title is displayed
+    plot.title("Training and Testing Losses across Epochs")
+    # We plot the image
+    plot.show()
 
-        plt.figure(1)  # ------------------------------------------------------------Mode = figure(1) for plt
-        plt.plot(epoch_list_for_the_plot, training_loss_list, 'g')  # pass array or list
-        plt.plot(epoch_list_for_the_plot, testing_loss_list, 'r')
-        plt.xlabel("Number of Epochs")
-        plt.ylabel("Loss")
-        plt.gca().legend(('Training Loss', 'Testing Loss'))
-        plt.grid()
-
-        plt.title("Number of Epochs VS Loss")
-
-
-
-    #reset the running loss to zero after every epoch
     # We save the the auto-encoder model
     torch.save(model.state_dict(), model_name_to_save)
-    plt.show()
-
 
 # ----------- End of Program ----------
