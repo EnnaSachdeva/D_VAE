@@ -17,7 +17,7 @@ import math
 
 # ----------- Hyper Parameters -----------
 # The number of epochs to train
-num_epochs = 10
+num_epochs = 100
 # The batch size is 64
 batch_size = 64
 # The learning rate that we are using for training
@@ -27,9 +27,9 @@ weight_decay = 0.00001
 # The momentum to be used during backward propagation
 momentum = 0.5
 # The training dataset
-dataset_txt_file = 'Rover_State_Test_Dataset.txt'
+dataset_txt_file = '../data/Rover_State_Test_Dataset.txt'
 # This specifies how to split the dataset into testing and training datasets
-train_test_ratio = 0.9
+train_test_ratio = 0.8
 # The optimizers to use ('ADAM', 'ADAGRAD', 'RMSPROP', 'SGD')
 optimizer_to_use = 'ADAM'
 # The loss criterion to use ('L1, 'MSE')
@@ -98,20 +98,24 @@ class AutoEncoder(nn.Module):
     def evaluate_network(self, data_loader, loss_criterion):
         # initializing the total evaluation loss to be zero
         total_evaluation_loss = 0
+        #count the number of total samples in the whole dataloader
+        total_samples = 0
         # Making the network to be in evaluation mode so that losses won't be accumulated, thereby saving memory
         self.eval()
         # Iterating through the data is data_loader
         for index, data in enumerate(data_loader):
             # Splitting into states and labels
             states, labels = data
+            samples_per_batch = (labels.size(0))
+            total_samples = total_samples + samples_per_batch
             # Converting to nn variable. cuda() creates another Variable that isn’t a leaf node in the computation graph
             states, labels = Variable(states).cuda(), Variable(labels).cuda()
             # The output obtained from the neural network
             outputs = self(states)
             # The loss is evaluated based on the cross entropy loss criteria
-            loss = loss_criterion(outputs, states)
+            sum_of_loss_of_all_elements_in_a_batch = loss_criterion(outputs, states)
             # We get the loss for the current batch
-            total_evaluation_loss += loss.data
+            total_evaluation_loss += sum_of_loss_of_all_elements_in_a_batch.data
             # In case we are at the last batch
             if index == len(data_loader) - 1:
                 # We print the first state and outputs of the last batch for comparison
@@ -120,7 +124,9 @@ class AutoEncoder(nn.Module):
         # Converting the network back into training mode
         self.train()
         # Returns the average loss across the evaluation dataset
-        return total_evaluation_loss / len(data_loader)
+        #print(total_evaluation_loss,total_samples)
+        #time.sleep(334)
+        return total_evaluation_loss / total_samples
 
     @staticmethod
     # This function reads a text file containing the states information
@@ -211,10 +217,10 @@ if __name__ == "__main__":
     # Choosing the different types of loss criterion available
     if criterion_to_use == 'L1':
         # We use L1 loss as the loss criterion (absolute difference between the predicted value and actual value)
-        criterion = nn.L1Loss()
+        criterion = nn.L1Loss(size_average=False)#size_average overrides reduction
     else:
         # We use the mean square error as the loss
-        criterion = nn.MSELoss()
+        criterion = nn.MSELoss(size_average=False)
 
     # Choosing the different types of optimizers available
     if optimizer_to_use == 'ADAM':
