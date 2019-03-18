@@ -16,64 +16,9 @@ from replay_memory import ReplayMemory, Transition
 from rover_domain import Task_Rovers
 import utils as utils
 from torch.autograd import Variable
-
-
-class Parameters:
-    def __init__(self):
-
-        #Agent specific
-        self.algo = 'DDPG' #DDPG | NAF
-        self.gamma = 0.99
-        self.tau = 0.001
-        self.noise_scale = 0.5
-        self.final_noise_scale = 0.3
-        self.exploration_end = 10000 #Num of episodes with noise
-        self.seed = 4
-
-        #NN specifics
-        self.num_hnodes = self.num_mem = 200
-        self.is_dpp = True
-
-        # Train data
-        self.batch_size = 10000
-
-
-        #Rover domain
-        self.dim_x = self.dim_y = 15;
-        self.obs_radius = 15;
-        self.act_dist = 1.5;
-        self.angle_res = 20
-        self.num_poi = 10;
-        self.num_rover = 4;
-        self.num_timestep = 25
-        self.poi_rand = 1;
-        self.coupling = 2; # number of rovers required to observe a POI
-        self.rover_speed = 1
-        self.is_homogeneous = True  #False --> Heterogenenous Actors
-        self.sensor_model = 2 #1: Density Sensor
-                              #2: Closest Sensor
-
-
-        #Dependents
-        self.state_dim = 2*360 / self.angle_res + 5 #why 5 here instead of 4?
-        self.action_dim = 2
-        self.test_frequency = 10
-
-        #Replay Buffer
-        self.buffer_size = 1000000
-
-        self.save_foldername = 'R_D++/'
-        if not os.path.exists(self.save_foldername): os.makedirs(self.save_foldername)
-
-        #Unit tests (Simply changes the rover/poi init locations)
-        self.unit_test = 0 #0: None
-                           #1: Single Agent
-                           #2: Multiagent 2-coupled
-
-        self.num_episodes = 100000
-        self.updates_per_step = 1
-        self.replay_size = 1000000
-        self.render = 'False'
+import calculate_rewards
+from visualizer import visualize
+from D_VAE_Parameters import Parameters
 
 
 args = Parameters()
@@ -83,47 +28,78 @@ env = Task_Rovers(args)
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
 
+poi_vals = env.set_poi_values()
+if not os.path.exists(args.save_foldername): os.makedirs(args.save_foldername)
+
 
 if args.algo == "NAF":
     agent = NAF(args.gamma, args.tau, args.num_hnodes, env.observation_space.shape[0], env.action_space, args)
 else:
     agent = DDPG(args.gamma, args.tau, args.num_hnodes, env.observation_space.shape[0], env.action_space, args)
 
-memory = ReplayMemory(args.replay_size)
+memory = ReplayMemory(args.buffer_size)
 ounoise = OUNoise(env.action_space.shape[0])
 
 for i_episode in range(args.num_episodes):
-    joint_state = utils.to_tensor(np.array(env.reset()))
+    joint_state = utils.to_tensor(np.array(env.reset())) # reset the environment
 
     if i_episode % args.test_frequency != 0:
         ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end - i_episode) / args.exploration_end + args.final_noise_scale
         ounoise.reset()
+
     episode_reward = 0
 
 
     # Here the joint reward is being given to each rover if it is observing some POI along with other rovers. So each
     # rover gets a reward if the POI gets observed.'
     # The task is considered done, if the
-    for t in range(args.num_timestep):
+    for t in range(args.num_timesteps): # TODO: insert some break point when all POIs are observed
         if i_episode % args.test_frequency == 0:
             joint_action = agent.select_action(joint_state)
         else:
             joint_action = agent.select_action(joint_state, ounoise)  # doing exploratory task once in a while (in test_frequency interval)
 
+
+
         joint_next_state, joint_reward = env.step(joint_action.cpu().numpy())
+
         joint_next_state = utils.to_tensor(np.array(joint_next_state), volatile=True)
-        done = t == args.num_timestep - 1
-        episode_reward += np.sum(joint_reward)
+
+        rover_current_pos = env.rover_pos # get the current pos of the rover
+
+        dpp_joint_reward = calculate_rewards.calc_dpp(rover_current_pos, poi_vals, env.poi_pos)  # calculate D++ reward
+
+        global_joint_reward = calculate_rewards.calc_global(rover_current_pos, poi_vals, env.poi_pos)  # calculate D++ reward
+
+
+        temp_state = joint_next_state
+        temp_state = np.array(temp_state.cpu())
+        #print("#############", np.shape(temp_state), "##################")
+
+        file = open("data_%d_%d_%d.txt" % (args.num_rovers, args.num_pois, args.angle_resolution), "a")
+        file.write(str(temp_state) + "\n")
+
+        file.close()
+
+        done = t == args.num_timesteps - 1
+        #episode_reward += np.sum(joint_reward)
+        episode_reward += np.sum(global_joint_reward)
 
         #Add to memory
-        for i in range(args.num_rover):
+        for i in range(args.num_rovers):
             action = Variable(joint_action[i].unsqueeze(0))
             state = joint_state[i,:].unsqueeze(0)
             next_state = joint_next_state[i, :].unsqueeze(0)
-            reward = utils.to_tensor(np.array([joint_reward[i]])).unsqueeze(0) #joint reward for
+            #reward = utils.to_tensor(np.array([joint_reward[i]])).unsqueeze(0) #todo: what reward it signifies
+            reward = utils.to_tensor(np.array([global_joint_reward[i]])).unsqueeze(0)  # take this as the DPP reward
+            #reward = global_joint_reward
             memory.push(state, action, next_state, reward)
 
         state = next_state
+
+        #with open("array.txt", "wb") as f:
+        #    f.write("%s\n" % np.array(temp_state.cpu())) # %
+            #f.write('\n')
 
         if len(memory) > args.batch_size * 5:
             for _ in range(args.updates_per_step):
@@ -131,8 +107,20 @@ for i_episode in range(args.num_episodes):
                 batch = Transition(*zip(*transitions))
                 agent.update_parameters_dpp(batch)
 
+    #path_reward = calculate_rewards.calc_dpp_path(env.rover_path, poi_vals, env.poi_pos) # calculate D++ reward for the entire trajectory
+
+
+
     if i_episode % args.test_frequency == 0:
-        env.render()
+        #env.render()
         tracker.update([episode_reward], i_episode)
-        print("Episode: {}, noise: {}, reward: {}, average reward: {}".format(i_episode, ounoise.scale,
-                                                                          episode_reward, tracker.all_tracker[0][1]))
+        print("Episode: {}, noise: {}, reward: {}, average reward: {}, memory_length: {}".format(i_episode, ounoise.scale,
+        dpp_joint_reward, episode_reward/args.num_timesteps, len(memory)))
+
+
+
+###### once the training is over, test the policies ###############
+if args.visualization:
+    visualize(env, episode_reward)
+
+input("Press Enter to continue...")

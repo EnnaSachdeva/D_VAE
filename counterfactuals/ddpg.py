@@ -198,11 +198,11 @@ class DDPG(object):
         all_q = [critic((state),actor((state)))]
 
         state = utils.to_numpy(state)
-        mid_index = 180 / self.args.angle_res
+        mid_index = 180 / self.args.angle_resolution
         coupling = self.args.coupling
         # dpp_sweep = [mid_index + i for i in range(int(-coupling/2), int(-coupling/2) + coupling, 1)]
 
-        dpp_sweep = random.sample(range(360 // self.args.angle_res), coupling + 1)
+        dpp_sweep = random.sample(range(360 // self.args.angle_resolution), coupling + 1)
 
         for i, add_index in enumerate(dpp_sweep):
             state[:, add_index] += 2.0
