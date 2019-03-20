@@ -34,9 +34,18 @@ def visualize(rd, episode_reward):
     game_display = pygame.display.set_mode((x_map*scale_factor, y_map*scale_factor))
     pygame.display.set_caption('Rover Domain')
     robot_image = pygame.image.load('./robot.png')
+    robot_image = pygame.transform.scale(robot_image, (64, 64))
+
     background = pygame.image.load('./background.png')
+    background = pygame.transform.scale(background, (1536, 1536))
+
     greenflag = pygame.image.load('./greenflag.png')
+    greenflag = pygame.transform.scale(greenflag, (64, 64))
+
     redflag = pygame.image.load('./redflag.png')
+    redflag = pygame.transform.scale(redflag, (64, 64))
+
+
     color_array = generate_color_array(p.num_rovers * p.num_types)
     pygame.font.init() 
     myfont = pygame.font.SysFont('Comic Sans MS', 30)

@@ -21,7 +21,7 @@ class Parameters:
     autoencoder_output_length = 10 #todo: AE output length
 
     ##### episodes #####
-    num_episodes = 2000
+    num_episodes = 1
     updates_per_step = 1
     render = 'False'
     unit_test = 0 #0: None

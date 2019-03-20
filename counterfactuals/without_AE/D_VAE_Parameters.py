@@ -21,7 +21,7 @@ class Parameters:
 
 
     ##### episodes #####
-    num_episodes = 2000
+    num_episodes = 2
     updates_per_step = 1
     render = 'False'
     unit_test = 0 #0: None
@@ -38,7 +38,7 @@ class Parameters:
 
     # Domain parameters
     #team_types = 'heterogeneous'  # Use 'homogeneous' for uniform rovers, and 'heterogeneous' for non-uniform rovers
-    poi_rand = False # True for random initialization of rovers and POIs
+    poi_rand = True # True for random initialization of rovers and POIs
     team_types = 'homogeneous'
     reward_type = 0  # 0 for global, 1 for difference, 2 for d++, 3 for s-d++
     num_rovers = 4  # Number of rovers on map (GETS MULTIPLIED BY NUMBER OF TYPES)

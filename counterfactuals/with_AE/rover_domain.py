@@ -59,7 +59,7 @@ class Task_Rovers:
 
 
         # for reseting the environment with random or non-random positions of POIs
-        if self.params.poi_rand: #Random
+        if self.params.poi_rand: #Random initialization of POIs
             for i in range(self.params.num_pois):
                 if i % 3 == 0:
                     x = randint(start, center - rad - 1)
