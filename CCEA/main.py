@@ -6,6 +6,7 @@ from Python_Code import homogeneous_rewards as homr
 #from Python_Code import heterogeneous_rewards as hetr
 import csv; import os; import sys
 from visualizer import visualize
+import numpy
 
 
 def save_reward_history(reward_history, file_name):
@@ -192,28 +193,52 @@ def run_homogeneous_rovers():
                         nn.run_neural_network(joint_state[rover_id], cc.pops[rover_id, policy_id], rover_id)
                     joint_state, done = rd.step(nn.out_layer)
 
+                    temp_state = joint_state
+
+                    # print("#############", np.shape(temp_state), "##################")
+                    temp_state = numpy.array(temp_state)
+
+                    file = open("CCEA_data_%d_%d_%d.txt" % (p.num_rovers, p.num_pois, p.angle_resolution), "a")
+                    file.write(str(temp_state) + "\n")
+
+                    file.close()
+
                 # Update fitness of policies using reward information
                 if rtype == 0:
                     reward = homr.calc_global(rd.rover_path, rd.poi_value, rd.poi_pos)
                     for pop_id in range(rd.num_agents):
-                        policy_id = int(cc.team_selection[pop_id, team_number])
+                        policy_id = int(cc.team_selection[pop_id][team_number])
                         cc.fitness[pop_id, policy_id] = reward
+
+
+
                 elif rtype == 1:
                     reward = homr.calc_difference(rd.rover_path, rd.poi_value, rd.poi_pos)
                     for pop_id in range(rd.num_agents):
-                        policy_id = int(cc.team_selection[pop_id, team_number])
+                        policy_id = int(cc.team_selection[pop_id][team_number])
                         cc.fitness[pop_id, policy_id] = reward[pop_id]
+                    print("Generation", gen, "out of", p.generations, "Difference Reward:", reward)
+
                 elif rtype == 2:
                     reward = homr.calc_dpp(rd.rover_path, rd.poi_value, rd.poi_pos)
                     for pop_id in range(rd.num_agents):
                         policy_id = int(cc.team_selection[pop_id][team_number])
                         cc.fitness[pop_id, policy_id] = reward[pop_id]
+                    print("Generation", gen, "out of", p.generations, "D++ Reward:", reward)
+
                 else:
                     sys.exit('Incorrect Reward Type for Homogeneous Teams')
 
-            print(reward)
-
             cc.down_select()  # Perform down_selection after each policy has been evaluated
+
+            if rtype == 0:
+                print("Generation", gen, "out of", p.generations, "Global Reward:", reward)
+            elif rtype == 1:
+                print("Generation", gen, "out of", p.generations, "Difference Reward:", reward)
+            elif rtype == 2:
+                print("Generation", gen, "out of", p.generations, "D++ Reward:", reward)
+            else:
+                sys.exit('Incorrect Reward Type for Homogeneous Teams')
 
             # Testing Phase
             rd.reset_to_init()  # Reset rovers to initial positions
@@ -226,11 +251,14 @@ def run_homogeneous_rovers():
 
             reward = homr.calc_global(rd.rover_path, rd.poi_value, rd.poi_pos)
             reward_history.append(reward)
+            print("Global Reward", reward)
 
-            if gen == (p.generations-1):  # Save path at end of final generation
+            if gen%10==0:  # Save path at end of final generation
                 save_rover_path(rd.rover_path)
                 if p.visualizer_on:
                     visualize(rd, reward)
+
+
 
         if rtype == 0:
             save_reward_history(reward_history, "Global_Reward.csv")

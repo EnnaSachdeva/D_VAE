@@ -38,6 +38,7 @@ def init_poi_positions_random():  # Randomly set POI on the map
     return poi_positions
 
 
+
 def init_poi_positions_four_corners():  # Statically set 4 POI (one in each corner)
     assert(p.num_pois == 4)  # There must only be 4 POI for this initialization
 

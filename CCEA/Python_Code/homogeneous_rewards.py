@@ -3,6 +3,7 @@ from parameters import Parameters as p
 import math
 
 
+
 # GLOBAL REWARDS ------------------------------------------------------------------------------------------------------
 def calc_global(rover_path, poi_values, poi_positions):
     num_steps = p.num_steps + 1
@@ -10,7 +11,10 @@ def calc_global(rover_path, poi_values, poi_positions):
     g_reward = 0.0
 
     # For all POIs
+    poi_status = [False for _ in range(p.num_pois)]
+    poi_observed = False
     for poi_id in range(p.num_pois):
+
         current_poi_reward = 0.0
 
         # For all timesteps (rover steps)
@@ -41,11 +45,20 @@ def calc_global(rover_path, poi_values, poi_positions):
                     od_index = observer_distances.index(min(observer_distances))
                     observer_distances[od_index] = inf
                 temp_reward = poi_values[poi_id]/summed_distances
+                poi_status[poi_id] = True # Ignore POIs that have been already been observed in the previous time steps
+                poi_observed = True
+
+
             else:
                 temp_reward = 0.0
 
             if temp_reward > current_poi_reward:
                 current_poi_reward = temp_reward
+
+
+            if poi_observed == True:
+                break # none of the agents will get any more reward in any future steps now.
+
 
         g_reward += current_poi_reward
 
