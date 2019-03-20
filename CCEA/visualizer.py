@@ -52,6 +52,8 @@ def visualize(rd, episode_reward):
             for rover_id in range(p.num_types*p.num_rovers):
                 x_dist = rd.poi_pos[poi_id, 0] - rd.rover_path[tstep, rover_id, 0]
                 y_dist = rd.poi_pos[poi_id, 1] - rd.rover_path[tstep, rover_id, 1]
+
+                #print(rd.poi_pos[poi_id, 0], rd.poi_pos[poi_id, 1])
                 rover_type = rd.rover_path[tstep, rover_id, 2]
                 dist = math.sqrt((x_dist**2) + (y_dist**2))
 
@@ -103,7 +105,9 @@ def visualize(rd, episode_reward):
     pygame.display.update()
 
     running = True  # Keeps visualizer from closing until you 'X' out of window
-    while running:
+    pygame.quit()
+    while False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+

@@ -197,6 +197,7 @@ def run_homogeneous_rovers():
 
                     # print("#############", np.shape(temp_state), "##################")
                     temp_state = numpy.array(temp_state)
+                    #print("####", temp_state, "#####")
 
                     file = open("CCEA_data_%d_%d_%d.txt" % (p.num_rovers, p.num_pois, p.angle_resolution), "a")
                     file.write(str(temp_state) + "\n")
@@ -205,7 +206,9 @@ def run_homogeneous_rovers():
 
                 # Update fitness of policies using reward information
                 if rtype == 0:
-                    reward = homr.calc_global(rd.rover_path, rd.poi_value, rd.poi_pos)
+                    reward, poi_status = homr.calc_global(rd.rover_path, rd.poi_value, rd.poi_pos)
+                    rd.poi_status = poi_status
+
                     for pop_id in range(rd.num_agents):
                         policy_id = int(cc.team_selection[pop_id][team_number])
                         cc.fitness[pop_id, policy_id] = reward
@@ -249,11 +252,11 @@ def run_homogeneous_rovers():
                     nn.run_neural_network(joint_state[rover_id], cc.pops[rover_id, 0], rover_id)
                 joint_state, done = rd.step(nn.out_layer)
 
-            reward = homr.calc_global(rd.rover_path, rd.poi_value, rd.poi_pos)
+            reward, poi_status = homr.calc_global(rd.rover_path, rd.poi_value, rd.poi_pos)
             reward_history.append(reward)
             print("Global Reward", reward)
 
-            if gen%10==0:  # Save path at end of final generation
+            if gen%1==0:  # Save path at end of final generation
                 save_rover_path(rd.rover_path)
                 if p.visualizer_on:
                     visualize(rd, reward)

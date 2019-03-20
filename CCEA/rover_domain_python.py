@@ -9,7 +9,7 @@ class RoverDomain:
 
     def __init__(self):
         self.num_agents = p.num_rovers * p.num_types
-        self.obs_radius = p.activation_dist
+        self.observation_radius = p.observation_radius
 
         #Gym compatible attributes
         self.observation_space = np.zeros((1, int(2*360 / p.angle_resolution)))
@@ -19,6 +19,7 @@ class RoverDomain:
         #self.poi_pos = init_poi_positions_four_corners()
         self.poi_pos = init_poi_positions_random()
         self.poi_value = init_poi_values_fixed()
+        self.poi_status = [False for _ in range(p.num_pois)]  # FORMAT: [item] = [T/F] is observed?
 
         # Initialize rover position container
         self.rover_pos = init_rover_positions_fixed()
@@ -32,6 +33,7 @@ class RoverDomain:
         self.rover_initial_pos = self.rover_pos.copy()  # Track initial setup
 #        self.poi_pos = init_poi_positions_four_corners()
         self.poi_pos = init_poi_positions_random()
+        self.poi_status = self.poi_status = [False for _ in range(p.num_pois)]
 
         self.poi_value = init_poi_values_fixed()
         self.rover_path = np.zeros(((p.num_steps + 1), self.num_agents, 3))
@@ -90,10 +92,11 @@ class RoverDomain:
             temp_rover_dist_list = [[] for _ in range(int(360 / p.angle_resolution))]
 
             # Log all distance into brackets for POIs
-            for loc, value in zip(self.poi_pos, self.poi_value):
+            for loc, status, value in zip(self.poi_pos, self.poi_status, self.poi_value):
+                if status == True: continue  # If the POI has been accessed, ignore
 
                 angle, dist = self.get_angle_dist(self_x, self_y, loc[0], loc[1])
-                if dist >= self.obs_radius:
+                if dist >= self.observation_radius:
                     continue  # Observability radius
 
                 bracket = int(angle / p.angle_resolution)
@@ -107,7 +110,7 @@ class RoverDomain:
                     continue  # Ignore self
 
                 angle, dist = self.get_angle_dist(self_x, self_y, loc[0], loc[1])
-                if dist >= self.obs_radius:
+                if dist >= self.observation_radius:
                     continue  # Observability radius
 
                 if dist < p.min_distance:  # Clip distance to not overwhelm tanh in NN
@@ -128,7 +131,7 @@ class RoverDomain:
                     else:
                         sys.exit('Incorrect sensor model')
                 else:
-                    poi_state[bracket] = 0.0
+                    poi_state[bracket] = -1
 
                 # Rovers
                 num_agents = len(temp_rover_dist_list[bracket])  # Number of rovers in bracket
@@ -140,9 +143,27 @@ class RoverDomain:
                     else:
                         sys.exit('Incorrect sensor model')
                 else:
-                    rover_state[bracket] = 0.0
+                    rover_state[bracket] = -1
 
             state = rover_state + poi_state  # Append rover and poi to form the full state
+
+
+
+            #Append wall info
+            # if x and y coordinates of rover are at or less than a distance of observation radius from the 4 walls,
+            # add it to state, to know that the rovers are within the boundary of the walls
+            # TODO: explain this
+            state = state + [-1.0, -1.0, -1.0, -1.0] ##### extra information for wall info
+            if self_x <= p.observation_radius: state[-4] = self_x  # if x pos is within observation radius, add it to state
+            if p.x_dim - self_x <= p.observation_radius: state[-3] = p.x_dim - self_x
+            if self_y <= p.observation_radius :state[-2] = self_y # if y pos is within observation radius, add it to state
+            if p.y_dim - self_y <= p.observation_radius: state[-1] = p.y_dim - self_y
+
+            state[-4] = state[-4] / p.x_dim #max(state[-4], state[-3], state[-2], state[-1])
+            state[-3] = state[-3] / p.x_dim #max(state[-4], state[-3], state[-2], state[-1])
+            state[-2] = state[-2] / p.x_dim #max(state[-4], state[-3], state[-2], state[-1])
+            state[-1] = state[-1] / p.x_dim #max(state[-4], state[-3], state[-2], state[-1])
+
 
             joint_state.append(state)
 

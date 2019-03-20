@@ -9,6 +9,7 @@ def calc_global(rover_path, poi_values, poi_positions):
     num_steps = p.num_steps + 1
     inf = 1000.00
     g_reward = 0.0
+    boundary = 5.0
 
     # For all POIs
     poi_status = [False for _ in range(p.num_pois)]
@@ -33,9 +34,22 @@ def calc_global(rover_path, poi_values, poi_positions):
                 if distance <= p.min_distance:
                     distance = p.min_distance  # Clip distance
 
-                observer_distances[rover_id] = distance
+                x_center = p.x_dim/2; y_center = p.y_dim/2
 
-                # Check if agent observes poi
+                wall_penalty = 0
+                if (rover_path[step_number, rover_id, 0] < boundary):
+                    wall_penalty = wall_penalty-0.5*(abs(rover_path[step_number, rover_id, 0] - 0))
+                if(rover_path[step_number, rover_id, 0] > p.x_dim-boundary):
+                    wall_penalty = wall_penalty-0.5*(abs(rover_path[step_number, rover_id, 0] - p.x_dim))
+                if (rover_path[step_number, rover_id, 1] < boundary):
+                    wall_penalty = wall_penalty - 0.5 * (abs(rover_path[step_number, rover_id, 1] - 0))
+                if (rover_path[step_number, rover_id, 1] > p.y_dim-boundary):
+                    wall_penalty = wall_penalty - 0.5 * (abs(rover_path[step_number, rover_id, 1] - p.y_dim))
+
+
+
+                observer_distances[rover_id] = distance
+                 # Check if agent observes poi
                 if distance <= p.activation_dist: # Rover is in observation range
                     observer_count += 1
 
@@ -55,14 +69,18 @@ def calc_global(rover_path, poi_values, poi_positions):
             if temp_reward > current_poi_reward:
                 current_poi_reward = temp_reward
 
+            current_poi_reward = current_poi_reward + wall_penalty
+
+
 
             if poi_observed == True:
                 break # none of the agents will get any more reward in any future steps now.
 
 
+
         g_reward += current_poi_reward
 
-    return g_reward
+    return g_reward, poi_status
 
 
 # DIFFERENCE REWARDS -------------------------------------------------------------------------------------------------
