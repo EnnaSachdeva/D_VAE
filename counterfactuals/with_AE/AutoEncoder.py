@@ -258,7 +258,7 @@ if __name__ == "__main__":
     model.load_weights() #loads the pretrained model
 
 
-    '''
+
     epoch_testing_loss, epoch_testing_batch_mean, epoch_testing_batch_std = model.evaluate_network(test_data_loader,
                                                                                                    criterion)
 
@@ -419,5 +419,5 @@ if __name__ == "__main__":
     # We save the the auto-encoder model
 
     torch.save(model.state_dict(), model_name_to_save)
-    '''
+    
 # ----------- End of Program ----------

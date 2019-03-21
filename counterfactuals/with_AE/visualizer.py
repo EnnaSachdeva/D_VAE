@@ -116,7 +116,8 @@ def visualize(rd, episode_reward):
     pygame.display.update()
 
     running = True  # Keeps visualizer from closing until you 'X' out of window
-    while running:
+    pygame.quit()
+    while False:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False

@@ -29,8 +29,7 @@ import time
 import numpy as np
 import math
 
-
-
+import pickle
 
 args = Parameters()
 tracker = utils.Tracker(args, ['rewards'], '')
@@ -39,6 +38,9 @@ env = Task_Rovers(args)
 device = torch.device("cuda")
 torch.manual_seed(args.seed)
 np.random.seed(args.seed)
+
+with_ae_rewards = "with_ae_%d_rovers_%d_POI_rewards.pkl" % (args.num_rovers, args.num_pois)
+with_ae_path = "with_ae_%d_rovers_%d_POI_path.pkl" % (args.num_rovers, args.num_pois)
 
 class AutoEncoder(nn.Module):
 
@@ -51,15 +53,15 @@ class AutoEncoder(nn.Module):
                                      nn.LeakyReLU(),
                                      nn.Linear(1024, 256),
                                      nn.LeakyReLU(),
-                                     nn.Linear(256, 64),
+                                     nn.Linear(256, 32),
                                      nn.LeakyReLU(),
-                                     nn.Linear(64, 10),
+                                     nn.Linear(32, 10),
                                      nn.LeakyReLU())
 
         # The decoder part of the auto-encoder. nn.Sequential joins several layers end to end
-        self.decoder = nn.Sequential(nn.Linear(10, 64),
+        self.decoder = nn.Sequential(nn.Linear(10, 32),
                                      nn.LeakyReLU(),
-                                     nn.Linear(64, 256),
+                                     nn.Linear(32, 256),
                                      nn.LeakyReLU(),
                                      nn.Linear(256, 1024),
                                      nn.LeakyReLU(),
@@ -113,9 +115,15 @@ ounoise = OUNoise(env.action_space.shape[0])
 
 
 model1 = AutoEncoder(40)
-model1.load_state_dict(torch.load('DDPG_1_agent_250_epochs.pth'))
+model1.load_state_dict(torch.load('DDDPG_4_10_20_LS_20.pth'))
 model1 = model1.to(device)
 model1.eval()
+
+
+episode_rewards_list = []
+rover_path_list = []
+poi_pos_list = []
+poi_status_list = []
 
 
 for i_episode in range(args.num_episodes):
@@ -154,9 +162,7 @@ for i_episode in range(args.num_episodes):
         #if (global_joint_reward>0):
         #    print(i_episode, global_joint_reward)
 
-        joint_reward = global_joint_reward
-
-
+        #joint_reward = global_joint_reward
 
 
 
@@ -178,7 +184,7 @@ for i_episode in range(args.num_episodes):
 
         done = t == args.num_timesteps - 1
         #episode_reward += np.sum(joint_reward)
-        episode_reward += joint_reward[0]
+        episode_reward += np.sum(joint_reward)
         #episode_reward = episode_reward + global_joint_reward
         #print(episode_reward)
 
@@ -214,6 +220,7 @@ for i_episode in range(args.num_episodes):
 
 
 
+    episode_rewards_list.append(episode_reward)
     #if i_episode % args.test_frequency == 0:
     if i_episode % 10== 0:
         #env.render()
@@ -223,8 +230,23 @@ for i_episode in range(args.num_episodes):
         float(episode_reward), float(episode_reward/args.num_timesteps)))
 
 
-###### once the training is over, test the policies ###############
-if args.visualization:
-    visualize(env, episode_reward)
 
-input("Press Enter to continue...")
+
+    if i_episode % 100 ==0:
+        if args.visualization:
+            visualize(env, episode_reward)
+
+
+    # saves reward to plot for each episode
+    if i_episode % (args.num_episodes - 1) == 0:
+        # Writes the reward list for without AE rewards
+        with open(with_ae_rewards, "wb") as file1:
+            pickle.dump(episode_rewards_list, file1)
+            #print(episode_rewards_list)
+        # writes the reward list for without
+        with open(with_ae_path, "wb") as file2:
+            pickle.dump([env.rover_path, poi_pos_list, poi_status_list], file2)
+            #print([env.rover_path, poi_pos_list, poi_status_list])
+
+
+
